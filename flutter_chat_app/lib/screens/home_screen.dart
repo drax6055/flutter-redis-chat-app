@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_app/services/socket_service.dart';
 import 'package:flutter_chat_app/screens/chat_screen.dart';
+import 'package:flutter_chat_app/widgets/responsive_layout.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 
@@ -16,16 +17,35 @@ class _HomeScreenState extends State<HomeScreen> {
   final _socketService = SocketService();
   StreamSubscription? _chatStartedSub;
   StreamSubscription? _errorSub;
+  StreamSubscription? _chatEndedSub;
+
+  bool _isChatActive = false;
 
   @override
   void initState() {
     super.initState();
     _chatStartedSub = _socketService.chatStartedStream.listen((data) {
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ChatScreen()),
-      );
+      if (ResponsiveLayout.isMobile(context)) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ChatScreen()),
+        );
+      } else {
+        setState(() {
+          _isChatActive = true;
+        });
+      }
+    });
+
+    _chatEndedSub = _socketService.chatEndedStream.listen((_) {
+      if (!mounted) return;
+      // On desktop, we need to hide the chat panel
+      if (!ResponsiveLayout.isMobile(context)) {
+        setState(() {
+          _isChatActive = false;
+        });
+      }
     });
 
     _errorSub = _socketService.errorStream.listen((error) {
@@ -40,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _chatStartedSub?.cancel();
     _errorSub?.cancel();
+    _chatEndedSub?.cancel();
+    _targetController.dispose();
     super.dispose();
   }
 
@@ -50,6 +72,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ResponsiveLayout(
+      mobileBody: _buildHomeContent(context),
+      desktopBody: Scaffold(
+        backgroundColor: const Color(0xFF1A1A1A),
+        body: Row(
+          children: [
+            SizedBox(
+              width: 350,
+              child: _buildHomeContent(context, isDesktopSideBar: true),
+            ),
+            const VerticalDivider(width: 1, color: Color(0xFF333333)),
+            Expanded(
+              child: _isChatActive
+                  ? const ChatScreen(isEmbedded: true)
+                  : _buildEmptyState(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent(
+    BuildContext context, {
+    bool isDesktopSideBar = false,
+  }) {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
@@ -108,6 +156,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: GoogleFonts.outfit(fontSize: 18),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      color: const Color(0xFF1A1A1A),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[700]),
+            const SizedBox(height: 16),
+            Text(
+              "Select a user to start chatting",
+              style: GoogleFonts.outfit(color: Colors.grey[500], fontSize: 18),
             ),
           ],
         ),

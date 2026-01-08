@@ -105,12 +105,13 @@ async function endChat(roomId) {
 /**
  * Adds a message to the room.
  */
-async function addMessage(roomId, senderId, text) {
+async function addMessage(roomId, senderId, text, replyTo = null) {
     const message = {
         id: uuidv4(),
         senderId,
         text,
         timestamp: new Date().toISOString(),
+        replyTo,
     };
 
     await redis.rpush(KEYS.ROOM_MESSAGES(roomId), JSON.stringify(message));

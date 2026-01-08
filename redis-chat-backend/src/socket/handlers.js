@@ -53,7 +53,7 @@ module.exports = (io) => {
         });
 
         // Send Message
-        socket.on("send_message", async ({ message, roomId }) => {
+        socket.on("send_message", async ({ message, roomId, replyTo }) => {
             // Validate user is actually in this room
             const currentRoom = await chatService.getUserActiveRoom(userId);
             if (currentRoom !== roomId) {
@@ -61,7 +61,7 @@ module.exports = (io) => {
                 return;
             }
 
-            const msgObj = await chatService.addMessage(roomId, userId, message);
+            const msgObj = await chatService.addMessage(roomId, userId, message, replyTo);
 
             // Broadcast to room (includes self)
             io.to(roomId).emit("new_message", msgObj);

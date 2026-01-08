@@ -39,7 +39,15 @@ class SocketService {
     // 1. Real Device (Required)
     // 2. Emulator (Usually works via bridge)
     // 3. Web (If testing on same network)
-    String serverUrl = 'http://192.168.29.39:3000';
+    // --------------------------------------------------------
+    // TODO: Replace this with your copied Render URL
+    const String productionUrl = 'https://flutter-redis-chat-app.onrender.com';
+    // --------------------------------------------------------
+
+    // Automatically switch to production URL if running in Release mode (Production)
+    String serverUrl = kReleaseMode
+        ? productionUrl
+        : 'http://192.168.29.39:3000';
 
     // We keep the platform check structure for robustness,
     // but we use the IP address to support the Real Device.
@@ -57,7 +65,7 @@ class SocketService {
     _socket = IO.io(
       serverUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['polling', 'websocket'])
           .disableAutoConnect()
           .setQuery({'userId': userId})
           .build(),
@@ -112,9 +120,13 @@ class SocketService {
     _socket!.emit('start_chat', {'targetUserId': targetUserId});
   }
 
-  void sendMessage(String text) {
+  void sendMessage(String text, [Map<String, dynamic>? replyTo]) {
     if (_currentRoomId == null || _socket == null) return;
-    _socket!.emit('send_message', {'roomId': _currentRoomId, 'message': text});
+    _socket!.emit('send_message', {
+      'roomId': _currentRoomId,
+      'message': text,
+      if (replyTo != null) 'replyTo': replyTo,
+    });
   }
 
   void endChat() {
