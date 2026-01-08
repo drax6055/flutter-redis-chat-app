@@ -152,12 +152,68 @@ async function getUserConnections(userId) {
     return await redis.smembers(KEYS.USER_CONNECTIONS(userId));
 }
 
+/**
+ * Edits a message in the room.
+ */
+async function editMessage(roomId, messageId, newText) {
+    const key = KEYS.ROOM_MESSAGES(roomId);
+    const rawMessages = await redis.lrange(key, 0, -1);
+    const messages = rawMessages.map((s) => JSON.parse(s));
+
+    let found = false;
+    let updatedMessage = null;
+
+    const newMessages = messages.map((msg) => {
+        if (msg.id === messageId) {
+            msg.text = newText;
+            msg.isEdited = true;
+            found = true;
+            updatedMessage = msg;
+        }
+        return msg;
+    });
+
+    if (!found) return { error: "Message not found" };
+
+    // Rewrite list
+    await redis.del(key);
+    // rpush requires at least one value, handle empty (though unlikely if editing)
+    const strings = newMessages.map((m) => JSON.stringify(m));
+    if (strings.length > 0) {
+        await redis.rpush(key, ...strings);
+    }
+
+    return { message: updatedMessage };
+}
+
+/**
+ * Deletes a message from the room.
+ */
+async function deleteMessage(roomId, messageId) {
+    const key = KEYS.ROOM_MESSAGES(roomId);
+    const rawMessages = await redis.lrange(key, 0, -1);
+    const messages = rawMessages.map((s) => JSON.parse(s));
+
+    const newMessages = messages.filter((msg) => msg.id !== messageId);
+
+    if (newMessages.length === messages.length) return { error: "Message not found" };
+
+    await redis.del(key);
+    const strings = newMessages.map((m) => JSON.stringify(m));
+    if (strings.length > 0) {
+        await redis.rpush(key, ...strings);
+    }
+    return { success: true };
+}
+
 module.exports = {
     addUserConnection,
     removeUserConnection,
     startChat,
     endChat,
     addMessage,
+    editMessage,
+    deleteMessage,
     getUserActiveRoom,
     getUserConnections,
 };

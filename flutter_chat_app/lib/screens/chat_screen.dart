@@ -23,6 +23,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   StreamSubscription? _msgSub;
   StreamSubscription? _endSub;
+  StreamSubscription? _msgUpdateSub;
+  StreamSubscription? _msgDeleteSub;
+
+  String? _editingMessageId;
 
   @override
   void initState() {
@@ -35,15 +39,33 @@ class _ChatScreenState extends State<ChatScreen> {
       _scrollToBottom();
     });
 
+    _msgUpdateSub = _socketService.messageUpdatedStream.listen((data) {
+      if (!mounted) return;
+      setState(() {
+        final index = _messages.indexWhere((m) => m.id == data['id']);
+        if (index != -1) {
+          _messages[index] = Message.fromJson(
+            data,
+            _socketService.currentUserId!,
+          );
+        }
+      });
+    });
+
+    _msgDeleteSub = _socketService.messageDeletedStream.listen((data) {
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.id == data['messageId']);
+      });
+    });
+
     _endSub = _socketService.chatEndedStream.listen((_) {
       if (!mounted) return;
-      // If embedded, the parent handles the UI switch usually, but we can show a snackbar
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Chat ended")));
-
       if (!widget.isEmbedded) {
-        Navigator.pop(context); // Go back to Home
+        Navigator.pop(context);
       }
     });
 
@@ -67,17 +89,28 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _msgSub?.cancel();
     _endSub?.cancel();
+    _msgUpdateSub?.cancel();
+    _msgDeleteSub?.cancel();
     super.dispose();
   }
 
   void _sendMessage() {
     if (_controller.text.isEmpty) return;
 
+    if (_editingMessageId != null) {
+      // Edit Mode
+      _socketService.editMessage(_editingMessageId!, _controller.text.trim());
+      setState(() {
+        _editingMessageId = null;
+      });
+      _controller.clear();
+      return;
+    }
+
     Map<String, dynamic>? replyData;
     if (_replyToMessage != null) {
       replyData = {
-        'id': _replyToMessage!
-            .timestamp, // utilizing timestamp as ID for now or if we had ID
+        'id': _replyToMessage!.id,
         'senderId': _replyToMessage!.senderId,
         'text': _replyToMessage!.text,
       };
@@ -133,7 +166,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.only(left: 20),
                     child: const Icon(Icons.reply, color: Colors.white),
                   ),
-                  child: _buildMessageBubble(msg, context),
+                  child: GestureDetector(
+                    onLongPress: () => _showMessageOptions(msg),
+                    child: _buildMessageBubble(msg, context),
+                  ),
                 );
               },
             ),
@@ -239,6 +275,18 @@ class _ChatScreenState extends State<ChatScreen> {
                       fontSize: 16,
                     ),
                   ),
+                  if (msg.isEdited)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        "(edited)",
+                        style: GoogleFonts.outfit(
+                          color: Colors.grey[400],
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -298,6 +346,39 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
+          if (_editingMessageId != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF333333),
+                borderRadius: BorderRadius.circular(12),
+                border: Border(
+                  left: BorderSide(color: Colors.yellow, width: 4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit, color: Colors.yellow, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Editing message...",
+                      style: GoogleFonts.outfit(color: Colors.white),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                    onPressed: () {
+                      setState(() {
+                        _editingMessageId = null;
+                        _controller.clear();
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -315,7 +396,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFF6C63FF)),
+                  icon: Icon(
+                    _editingMessageId != null ? Icons.check : Icons.send,
+                    color: _editingMessageId != null
+                        ? Colors.yellow
+                        : const Color(0xFF6C63FF),
+                  ),
                   onPressed: _sendMessage,
                 ),
               ],
@@ -323,6 +409,53 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showMessageOptions(Message msg) {
+    if (!msg.isMe) return; // Can only edit/delete own messages
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2A2A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.white),
+                title: Text(
+                  "Edit",
+                  style: GoogleFonts.outfit(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context); // Close modal
+                  setState(() {
+                    _replyToMessage = null; // Clear reply if any
+                    _editingMessageId = msg.id;
+                    _controller.text = msg.text;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: Text(
+                  "Delete",
+                  style: GoogleFonts.outfit(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context); // Close modal
+                  _socketService.deleteMessage(msg.id);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -17,6 +17,10 @@ class SocketService {
   final _chatStartedController =
       StreamController<Map<String, dynamic>>.broadcast();
   final _chatEndedController = StreamController<void>.broadcast();
+  final _messageUpdatedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _messageDeletedController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _errorController = StreamController<String>.broadcast();
 
   Stream<dynamic> get messageStream => _messageController.stream;
@@ -24,6 +28,10 @@ class SocketService {
       _chatStartedController.stream;
   Stream<void> get chatEndedStream => _chatEndedController.stream;
   Stream<String> get errorStream => _errorController.stream;
+  Stream<Map<String, dynamic>> get messageUpdatedStream =>
+      _messageUpdatedController.stream;
+  Stream<Map<String, dynamic>> get messageDeletedStream =>
+      _messageDeletedController.stream;
 
   String? _currentUserId;
   String? _currentRoomId;
@@ -98,6 +106,16 @@ class SocketService {
       _messageController.add(data);
     });
 
+    _socket!.on('message_updated', (data) {
+      print('Message Updated: $data');
+      _messageUpdatedController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket!.on('message_deleted', (data) {
+      print('Message Deleted: $data');
+      _messageDeletedController.add(Map<String, dynamic>.from(data));
+    });
+
     _socket!.on('chat_ended', (data) {
       print('Chat Ended');
       _currentRoomId = null;
@@ -126,6 +144,23 @@ class SocketService {
       'roomId': _currentRoomId,
       'message': text,
       if (replyTo != null) 'replyTo': replyTo,
+    });
+  }
+
+  void editMessage(String messageId, String newText) {
+    if (_currentRoomId == null || _socket == null) return;
+    _socket!.emit('edit_message', {
+      'roomId': _currentRoomId,
+      'messageId': messageId,
+      'newText': newText,
+    });
+  }
+
+  void deleteMessage(String messageId) {
+    if (_currentRoomId == null || _socket == null) return;
+    _socket!.emit('delete_message', {
+      'roomId': _currentRoomId,
+      'messageId': messageId,
     });
   }
 

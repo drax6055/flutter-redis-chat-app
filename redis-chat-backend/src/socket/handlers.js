@@ -77,6 +77,28 @@ module.exports = (io) => {
             io.to(roomId).emit("new_message", msgObj);
         });
 
+        // Edit Message
+        socket.on("edit_message", async ({ messageId, newText, roomId }) => {
+            const currentRoom = await chatService.getUserActiveRoom(userId);
+            if (currentRoom !== roomId) return;
+
+            const result = await chatService.editMessage(roomId, messageId, newText);
+            if (result.message) {
+                io.to(roomId).emit("message_updated", result.message);
+            }
+        });
+
+        // Delete Message
+        socket.on("delete_message", async ({ messageId, roomId }) => {
+            const currentRoom = await chatService.getUserActiveRoom(userId);
+            if (currentRoom !== roomId) return;
+
+            const result = await chatService.deleteMessage(roomId, messageId);
+            if (result.success) {
+                io.to(roomId).emit("message_deleted", { messageId });
+            }
+        });
+
         // End Chat
         socket.on("end_chat", async () => {
             const roomId = await chatService.getUserActiveRoom(userId);
