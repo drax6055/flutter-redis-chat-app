@@ -3,6 +3,7 @@ class Message {
   final String senderId;
   final String text;
   final String timestamp;
+  final String? imageUrl;
   final bool isMe;
   final bool isEdited;
   final Map<String, dynamic>? replyTo;
@@ -12,6 +13,7 @@ class Message {
     required this.senderId,
     required this.text,
     required this.timestamp,
+    this.imageUrl,
     required this.isMe,
     this.isEdited = false,
     this.replyTo,
@@ -23,6 +25,7 @@ class Message {
       senderId: json['senderId'] ?? 'Unknown',
       text: json['text'] ?? '',
       timestamp: json['timestamp'] ?? '',
+      imageUrl: json['imageUrl'],
       isMe: json['senderId'] == myUserId,
       isEdited: json['isEdited'] ?? false,
       replyTo: json['replyTo'] != null

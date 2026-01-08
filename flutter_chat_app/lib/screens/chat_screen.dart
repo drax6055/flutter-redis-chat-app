@@ -3,6 +3,8 @@ import 'package:flutter_chat_app/models/message.dart';
 import 'package:flutter_chat_app/services/socket_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ChatScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -113,10 +115,11 @@ class _ChatScreenState extends State<ChatScreen> {
         'id': _replyToMessage!.id,
         'senderId': _replyToMessage!.senderId,
         'text': _replyToMessage!.text,
+        'imageUrl': _replyToMessage!.imageUrl,
       };
     }
 
-    _socketService.sendMessage(_controller.text.trim(), replyData);
+    _socketService.sendMessage(_controller.text.trim(), replyTo: replyData);
     _controller.clear();
     setState(() {
       _replyToMessage = null;
@@ -264,17 +267,87 @@ class _ChatScreenState extends State<ChatScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (msg.replyTo!['imageUrl'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.photo,
+                                    color: Colors.white70,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Photo",
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      msg.replyTo!['imageUrl'].startsWith(
+                                            'http',
+                                          )
+                                          ? msg.replyTo!['imageUrl']
+                                          : (kIsWeb
+                                                ? 'http://localhost:3000${msg.replyTo!['imageUrl']}'
+                                                : 'http://192.168.29.39:3000${msg.replyTo!['imageUrl']}'),
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.broken_image,
+                                                size: 20,
+                                                color: Colors.grey,
+                                              ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
+                  // ... inside _buildMessageBubble ...
                   // Main Message Text
-                  Text(
-                    msg.text,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 16,
+                  if (msg.imageUrl != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          msg.imageUrl!.startsWith('http')
+                              ? msg.imageUrl!
+                              : (kIsWeb
+                                    ? 'http://localhost:3000${msg.imageUrl}'
+                                    : 'http://192.168.29.39:3000${msg.imageUrl}'),
+                          width: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.broken_image,
+                              color: Colors.white,
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
+                  if (msg.text.isNotEmpty)
+                    Text(
+                      msg.text,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
                   if (msg.isEdited)
                     Padding(
                       padding: const EdgeInsets.only(top: 4.0),
@@ -336,6 +409,51 @@ class _ChatScreenState extends State<ChatScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (_replyToMessage!.imageUrl != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.photo,
+                                  color: Colors.grey,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "Photo",
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.network(
+                                    _replyToMessage!.imageUrl!.startsWith(
+                                          'http',
+                                        )
+                                        ? _replyToMessage!.imageUrl!
+                                        : (kIsWeb
+                                              ? 'http://localhost:3000${_replyToMessage!.imageUrl}'
+                                              : 'http://192.168.29.39:3000${_replyToMessage!.imageUrl}'),
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(
+                                              Icons.broken_image,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -383,6 +501,13 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.add_photo_alternate,
+                    color: Color(0xFF6C63FF),
+                  ),
+                  onPressed: _pickImage,
+                ),
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -457,5 +582,69 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       },
     );
+  }
+
+  Future<void> _pickImage() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2A2A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: Text(
+                  "Camera",
+                  style: GoogleFonts.outfit(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleImageSelection(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: Text(
+                  "Gallery",
+                  style: GoogleFonts.outfit(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleImageSelection(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleImageSelection(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source);
+
+    if (pickedFile != null) {
+      // Upload using XFile directly (supported on Web & Mobile via uploadImage update)
+      String? imageUrl = await _socketService.uploadImage(pickedFile);
+
+      if (imageUrl != null) {
+        _socketService.sendMessage(
+          "",
+          imageUrl: imageUrl,
+        ); // Send image message
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Failed to upload image")),
+          );
+        }
+      }
+    }
   }
 }

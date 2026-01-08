@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -138,12 +140,17 @@ class SocketService {
     _socket!.emit('start_chat', {'targetUserId': targetUserId});
   }
 
-  void sendMessage(String text, [Map<String, dynamic>? replyTo]) {
+  void sendMessage(
+    String text, {
+    Map<String, dynamic>? replyTo,
+    String? imageUrl,
+  }) {
     if (_currentRoomId == null || _socket == null) return;
     _socket!.emit('send_message', {
       'roomId': _currentRoomId,
       'message': text,
       if (replyTo != null) 'replyTo': replyTo,
+      if (imageUrl != null) 'imageUrl': imageUrl,
     });
   }
 
@@ -162,6 +169,36 @@ class SocketService {
       'roomId': _currentRoomId,
       'messageId': messageId,
     });
+  }
+
+  // Upload image to backend and return URL
+  Future<String?> uploadImage(XFile file) async {
+    // You might need to change localhost to IP if on real device, similar to connect() logic
+    String baseUrl = 'http://192.168.29.39:3000';
+    if (kIsWeb) {
+      baseUrl = 'http://localhost:3000';
+    }
+
+    final uri = Uri.parse('$baseUrl/upload');
+    final request = http.MultipartRequest('POST', uri);
+
+    // Cross-platform file reading
+    final bytes = await file.readAsBytes();
+    request.files.add(
+      http.MultipartFile.fromBytes('image', bytes, filename: file.name),
+    );
+
+    try {
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final respStr = await response.stream.bytesToString();
+        final match = RegExp(r'"imageUrl":"(.*?)"').firstMatch(respStr);
+        return match?.group(1);
+      }
+    } catch (e) {
+      print("Upload failed: $e");
+    }
+    return null;
   }
 
   void endChat() {

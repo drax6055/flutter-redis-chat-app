@@ -121,11 +121,12 @@ async function endChat(roomId) {
 /**
  * Adds a message to the room.
  */
-async function addMessage(roomId, senderId, text, replyTo = null) {
+async function addMessage(roomId, senderId, text, replyTo = null, imageUrl = null) {
     const message = {
         id: uuidv4(),
         senderId,
         text,
+        imageUrl,
         timestamp: new Date().toISOString(),
         replyTo,
     };
