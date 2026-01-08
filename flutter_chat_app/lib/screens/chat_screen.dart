@@ -174,8 +174,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ), // Reduced padding for better nesting
               decoration: BoxDecoration(
                 color: msg.isMe
-                    ? const Color(0xFF6C63FF)
-                    : const Color(0xFF333333),
+                    ? const Color(0xFF333333)
+                    : Colors.black.withOpacity(0.2),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(12),
                   topRight: const Radius.circular(12),

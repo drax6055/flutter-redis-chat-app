@@ -13,6 +13,16 @@ module.exports = (io) => {
 
         console.log(`User ${userId} connected as ${connectionId}`);
 
+        // Clean up stale connections from Redis that are no longer valid on this server
+        const existingSockets = await chatService.getUserConnections(userId);
+        for (const oldSockId of existingSockets) {
+            // Check if socket is actually connected to this server instance
+            if (!io.sockets.sockets.has(oldSockId)) {
+                // It's a ghost from a previous run or crash, remove it
+                await chatService.removeUserConnection(userId, oldSockId);
+            }
+        }
+
         // store connection
         await chatService.addUserConnection(userId, connectionId);
 

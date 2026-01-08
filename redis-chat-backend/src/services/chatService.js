@@ -36,11 +36,27 @@ async function startChat(initiatorId, targetId) {
     if (initiatorId === targetId) return { error: "Cannot chat with yourself" };
 
     // 2. Check if either user is already in a chat
-    const [initiatorRoom, targetRoom] = await Promise.all([
+    let [initiatorRoom, targetRoom] = await Promise.all([
         getUserActiveRoom(initiatorId),
         getUserActiveRoom(targetId),
     ]);
 
+    // 2. Check and clean up stale sessions
+    for (const [uid, rid] of [[initiatorId, initiatorRoom], [targetId, targetRoom]]) {
+        if (rid) {
+            const exists = await redis.exists(KEYS.ROOM_PARTICIPANTS(rid));
+            if (!exists) {
+                // Stale room, clean it up
+                console.log(`Cleaning stale active_chat key for user ${uid}, room ${rid}`);
+                await redis.del(KEYS.USER_ACTIVE_CHAT(uid));
+                if (uid === initiatorId) initiatorRoom = null;
+                if (uid === targetId) targetRoom = null;
+            }
+        }
+    }
+
+    // Refetch active rooms after cleanup attempt (mostly just updating local vars if we cleared them above)
+    // Actually, we locally set them to null above so we can re-check:
     if (initiatorRoom) return { error: "You are already in a chat", roomId: initiatorRoom };
     if (targetRoom) return { error: "User is busy", roomId: null };
 

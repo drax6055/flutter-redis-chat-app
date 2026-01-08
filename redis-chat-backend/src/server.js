@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const registerSocketHandlers = require("./socket/handlers");
 
+const { redis } = require("./config/redis"); // Import redis to flush on start
 dotenv.config();
 
 const app = express();
@@ -30,6 +31,12 @@ registerSocketHandlers(io);
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+    try {
+        await redis.flushall();
+        console.log("Redis flushed for fresh ephemeral start.");
+    } catch (e) {
+        console.error("Failed to flush Redis:", e);
+    }
     console.log(`Server running on port ${PORT}`);
 });
