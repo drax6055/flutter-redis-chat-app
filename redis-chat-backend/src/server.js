@@ -16,15 +16,34 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 
-// Ensure uploads dir exists
+// Ensure uploads dir exists and is empty on startup
 const uploadDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) {
+
+if (fs.existsSync(uploadDir)) {
+    // Clear existing files
+    fs.readdirSync(uploadDir).forEach((file) => {
+        const curPath = path.join(uploadDir, file);
+        // Simple unlink for now, assuming only files are created
+        if (fs.lstatSync(curPath).isFile()) {
+            fs.unlinkSync(curPath);
+        }
+    });
+    console.log("Uploads directory cleared.");
+} else {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, uploadDir);
+        const roomId = req.params.roomId;
+        if (!roomId) {
+            return cb(new Error("No Room ID provided"));
+        }
+        const roomDir = path.join(uploadDir, roomId);
+        if (!fs.existsSync(roomDir)) {
+            fs.mkdirSync(roomDir, { recursive: true });
+        }
+        cb(null, roomDir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -52,15 +71,13 @@ app.get("/", (req, res) => {
 app.use("/uploads", express.static(uploadDir));
 
 // Upload Endpoint
-app.post("/upload", upload.single("image"), (req, res) => {
+app.post("/upload/:roomId", upload.single("image"), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
     }
-    // Return relative path or full URL. Relative is flexible.
-    // Assuming server is accessed via same host.
-    // If running logically, client constructs URL. Or we return full URL if we know host.
-    // Let's return relative path: /uploads/filename
-    res.json({ imageUrl: `/uploads/${req.file.filename}` });
+    const roomId = req.params.roomId;
+    // Return relative path: /uploads/roomId/filename
+    res.json({ imageUrl: `/uploads/${roomId}/${req.file.filename}` });
 });
 
 // Initialize Socket Handlers

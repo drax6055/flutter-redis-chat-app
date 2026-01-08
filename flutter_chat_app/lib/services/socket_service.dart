@@ -173,13 +173,16 @@ class SocketService {
 
   // Upload image to backend and return URL
   Future<String?> uploadImage(XFile file) async {
+    if (_currentRoomId == null) return null;
+
     // You might need to change localhost to IP if on real device, similar to connect() logic
     String baseUrl = 'http://192.168.29.39:3000';
     if (kIsWeb) {
       baseUrl = 'http://localhost:3000';
     }
 
-    final uri = Uri.parse('$baseUrl/upload');
+    // Append roomId to endpoint
+    final uri = Uri.parse('$baseUrl/upload/$_currentRoomId');
     final request = http.MultipartRequest('POST', uri);
 
     // Cross-platform file reading

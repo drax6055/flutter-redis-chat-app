@@ -97,8 +97,28 @@ async function startChat(initiatorId, targetId) {
 /**
  * Ends a chat room, deletes all messages and metadata.
  */
+const fs = require("fs");
+const path = require("path");
+
+/**
+ * Ends a chat room, deletes all messages and metadata.
+ */
 async function endChat(roomId) {
     if (!roomId) return;
+
+    // cleanup files first: remove the entire folder for this room
+    // __dirname is src/services. We need to go up to src then to root then to uploads.
+    // Actually source/server.js uses "../uploads" from src/ which means root/uploads.
+    // So from src/services/ we need "../../uploads".
+    const uploadDir = path.join(__dirname, "../../uploads");
+    const roomDir = path.join(uploadDir, roomId);
+
+    if (fs.existsSync(roomDir)) {
+        fs.rm(roomDir, { recursive: true, force: true }, (err) => {
+            if (err) console.error(`Error removing room folder ${roomId}:`, err);
+            else console.log(`Removed room folder: ${roomId}`);
+        });
+    }
 
     // Get participants to clear their status
     const participants = await redis.smembers(KEYS.ROOM_PARTICIPANTS(roomId));
