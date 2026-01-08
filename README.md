@@ -87,7 +87,7 @@ flutter pub get
 flutter run
 ```
 
-> **Note for Real Devices**: The app is configured to connect to `192.168.29.39:3000`. Ensure your phone and computer are on the same Wi-Fi network and your firewall allows connections on port 3000.
+> **Note for Real Devices**: The app is configured to connect to `XXX.XXX.XX.XX:3000`. Ensure your phone and computer are on the same Wi-Fi network and your firewall allows connections on port 3000.
 
 ## 🤝 Contributing
 
@@ -96,3 +96,15 @@ Contributions are welcome! Please fork the repository and submit a pull request 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+flutter
+redis
+chat-application
+real-time-chat
+one-to-one-chat
+session-based
+in-memory-database
+backend
+frontend
+mobile-app
