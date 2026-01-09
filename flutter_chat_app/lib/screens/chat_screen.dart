@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io';
 
 class ChatScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -29,6 +30,8 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription? _msgDeleteSub;
 
   String? _editingMessageId;
+  XFile? _selectedImage;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -96,8 +99,9 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
-    if (_controller.text.isEmpty) return;
+  Future<void> _sendMessage() async {
+    if (_controller.text.isEmpty && _selectedImage == null) return;
+    if (_isUploading) return;
 
     if (_editingMessageId != null) {
       // Edit Mode
@@ -107,6 +111,24 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _controller.clear();
       return;
+    }
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    String? imageUrl;
+    if (_selectedImage != null) {
+      imageUrl = await _socketService.uploadImage(_selectedImage!);
+      if (imageUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Failed to upload image")),
+          );
+          setState(() => _isUploading = false);
+          return;
+        }
+      }
     }
 
     Map<String, dynamic>? replyData;
@@ -119,10 +141,16 @@ class _ChatScreenState extends State<ChatScreen> {
       };
     }
 
-    _socketService.sendMessage(_controller.text.trim(), replyTo: replyData);
+    _socketService.sendMessage(
+      _controller.text.trim(),
+      replyTo: replyData,
+      imageUrl: imageUrl,
+    );
     _controller.clear();
     setState(() {
       _replyToMessage = null;
+      _selectedImage = null;
+      _isUploading = false;
     });
   }
 
@@ -374,6 +402,57 @@ class _ChatScreenState extends State<ChatScreen> {
       color: const Color(0xFF2A2A2A),
       child: Column(
         children: [
+          if (_selectedImage != null && !_isUploading)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF333333),
+                borderRadius: BorderRadius.circular(12),
+                border: Border(
+                  left: BorderSide(color: const Color(0xFF6C63FF), width: 4),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Selected Image",
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFF6C63FF),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: kIsWeb
+                              ? Image.network(
+                                  _selectedImage!.path,
+                                  height: 100,
+                                  fit: BoxFit.contain,
+                                )
+                              : Image.file(
+                                  File(_selectedImage!.path),
+                                  height: 100,
+                                  fit: BoxFit.contain,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                    onPressed: () => setState(() => _selectedImage = null),
+                  ),
+                ],
+              ),
+            ),
           if (_replyToMessage != null)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -521,13 +600,22 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(
-                    _editingMessageId != null ? Icons.check : Icons.send,
-                    color: _editingMessageId != null
-                        ? Colors.yellow
-                        : const Color(0xFF6C63FF),
-                  ),
-                  onPressed: _sendMessage,
+                  icon: _isUploading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF6C63FF),
+                          ),
+                        )
+                      : Icon(
+                          _editingMessageId != null ? Icons.check : Icons.send,
+                          color: _editingMessageId != null
+                              ? Colors.yellow
+                              : const Color(0xFF6C63FF),
+                        ),
+                  onPressed: _isUploading ? null : _sendMessage,
                 ),
               ],
             ),
@@ -630,21 +718,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final pickedFile = await picker.pickImage(source: source);
 
     if (pickedFile != null) {
-      // Upload using XFile directly (supported on Web & Mobile via uploadImage update)
-      String? imageUrl = await _socketService.uploadImage(pickedFile);
-
-      if (imageUrl != null) {
-        _socketService.sendMessage(
-          "",
-          imageUrl: imageUrl,
-        ); // Send image message
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Failed to upload image")),
-          );
-        }
-      }
+      setState(() {
+        _selectedImage = pickedFile;
+      });
     }
   }
 }

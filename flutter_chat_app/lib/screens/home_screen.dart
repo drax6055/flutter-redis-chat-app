@@ -51,7 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _errorSub = _socketService.errorStream.listen((error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(error, style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red,
+        ),
       );
     });
   }
